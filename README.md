@@ -9,6 +9,8 @@
 ### ZX Spectrum - Ready to Use
 - **Download**: [`z80typeZX.tap`](./z80typeZX.tap) - Complete program ready to load
 - **Technical Details**: [`DOCUMENTATION.md`](./DOCUMENTATION.md) - Complete specifications
+- **Z80 ID Guide**: [`Z80ID.md`](./Z80ID.md) - Z80 CPU Variant Identification Guide
+
 
 ```basic
 LOAD ""
@@ -146,6 +148,7 @@ Hardware Detection → CMOS/NMOS Test → U880 Bug Test → Flag Pattern Analysi
 - [`z80typeZX.bas`](./z80typeZX.bas) - BASIC loader
 - [`z80typeZX.tap`](./z80typeZX.tap) - Ready-to-use TAP file
 - [`DOCUMENTATION.md`](./DOCUMENTATION.md) - Complete technical specs
+- [`Z80ID.md`](./Z80ID.md) - Z80 CPU Variant Identification Guide
 - [`Results.md`](./Results.md) - Test results database
 
 ---
