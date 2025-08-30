@@ -2,6 +2,22 @@
 
 This Z80 assembly implementation identifies processor variants using three detection algorithms. Sergey Kiselev originally developed the program in Intel 8080 assembly syntax for CP/M systems using Z80 SIO interrupt vector registers. Rui Ribeiro later translated and ported it to Timex 2068/2048 platforms, ZX Spectrum 128K/48K+AY systems, and ZX Spectrum 48K systems without AY.
 
+## Historical Context
+
+Intel began introducing CPUs with a proper `CPUID` instruction only in the mid-1990s, starting with the Pentium processor. Prior to this development, processor identification relied entirely on exploiting quirks and undocumented behaviors. This Z80 identification implementation exemplifies the techniques employed during that era—the systematic exploitation of implementation-specific behaviors, undocumented instructions, and silicon-level differences to create unique processor fingerprints. The methods documented herein represent the fundamental approach that was necessary for processor identification throughout the entire 8-bit and early 16-bit computing era.
+
+After fifty years of community tinkering and reverse engineering, Z80 variants hold few hidden secrets and have been extensively documented by enthusiasts, researchers, and hardware developers. The detection methods presented here build upon decades of collective knowledge about silicon-level implementation differences, manufacturing variations, and undocumented instruction behaviors that the community has systematically catalogued and verified across countless processor specimens.
+
+## Practical Applications
+
+**Hardware Authentication**: Identifying counterfeit or remarked processors, including Chinese forgeries such as U880 processors relabeled with laser-etched Zilog markings. Such forgeries present a real issue in the vintage computing market, as U880 processors behave quite differently from genuine Zilog Z80s and can cause strange issues or failures in Z80 congruency tests. This is additionally useful when CPU markings have faded with age or have been intentionally defaced, making visual identification unreliable or impossible.
+
+**Hardware Diagnostics**: Identifying dead or decaying chips, though vintage Z80 processors have generally proven more resilient to aging than initially expected.
+
+**Retro Computing**: Determining which specific CPU variant is installed in Z80-based retro computers, which can be crucial for compatibility, performance optimization, and historical accuracy in restoration projects.
+
+**Emulation Development**: Serving as a benchmark to evaluate the accuracy of Z80 emulation, helping emulator developers ensure their implementations correctly replicate the behavioral differences between various Z80 family members.
+
 ## 1. NMOS/CMOS Technology Detection (`TESTCMOS`)
 
 **Algorithm**: Exploits implementation-specific behavior of undocumented opcode `EDh 71h` (`OUT (C),0`) to distinguish between NMOS and CMOS silicon technologies.
@@ -9,7 +25,7 @@ This Z80 assembly implementation identifies processor variants using three detec
 **Implementation Differences**:
 - **NMOS implementations**: The undocumented instruction `OUT (C),0` writes the value `0x00` to the target port
 - **CMOS implementations**: The undocumented instruction `OUT (C),0` writes the value `0xFF` to the target port
-- **Exception**: Sharp LH5080A (CMOS) exhibits NMOS-like behavior and is reported as NMOS
+- **Exception**: The Sharp LH5080A (CMOS) exhibits NMOS-like behavior and is classified as NMOS
 
 **Operational Protocol**:
 The global `TESTCMOS` routine serves as the main entry point and orchestrates the entire NMOS/CMOS detection process:
@@ -49,7 +65,7 @@ The `ZXTYPE` routine performs sequential hardware detection to identify the spec
   - Writes `0` to ULA → reads bit 6 → should be clear for hysteresis compatibility
   - Repeats the test 3 times for reliability confirmation
 - **Result**: If all hysteresis tests pass → returns `ZXTYPE = 3` (hysteresis-compatible hardware)
-- **Hardware coverage**: ZX Spectrum 48K or clone with appropriate EAR/MIC circuit coupling
+- **Hardware coverage**: ZX Spectrum 48K or clone with appropriate EAR/MIC and speaker circuit coupling
 
 **Default Classification**:
 - If AY, Timex, and hysteresis tests all fail → returns `ZXTYPE = 0` (Standard 48K Spectrum)
@@ -108,26 +124,27 @@ TESTCMOSZX:
 
 wait_key:
     ; Check W key (White border - CMOS detection)
-    ld      bc,$FBFE        ; Keyboard row Q-W-E-R-T
-    in      a,(c)           ; Read keyboard
+    ld   b,KBD_HROW_3       ; port FBFE (Q-W-E-R-T row)
+    in   a,(c)              ; Read keyboard state
     scf                     ; Set carry flag for CMOS result
-    bit     1,a             ; Test W key (bit 1)
-    jr      z,key_pressed   ; Jump if W pressed
+    bit  1,a                ; Test W key (bit 1)
+    jr   z,key_pressed      ; Jump if W pressed
 
     ; Check B key (Black border - NMOS detection)  
-    ld      bc,$7FFE        ; Keyboard row B-N-M-SS-Space
-    in      a,(c)           ; Read keyboard
+    ld   b,KBD_HROW_8       ; port 7FFE (B-N-M-SS-Space row)
+    in   a,(c)              ; Read keyboard state
     scf                     ; Set carry flag
     ccf                     ; Clear carry flag for NMOS result
-    bit     4,a             ; Test B key (bit 4)
-    jr      z,key_pressed   ; Jump if B pressed
-    jr      wait_key        ; Continue polling
+    bit  4,a                ; Test B key (bit 4)
+    jr   z,key_pressed      ; Jump if B pressed
+    jr   wait_key           ; Continue polling
 
 key_pressed:
-    ld      a,$ff           ; Preset CMOS result
-    jr      c,LEAVEZX       ; If carry set (W key), return CMOS
-    xor     a               ; Clear A for NMOS result
-    ret                     ; Return NMOS result
+    ld   a,$ff              ; Preset CMOS result
+    jr   c,LEAVEZX          ; If carry set (W key), return CMOS
+    xor  a                  ; Clear A for NMOS result
+LEAVEZX:
+    ret                     ; Return: A=0x00 for NMOS, A=0xFF for CMOS
 ```
 
 **User Interface**:
@@ -149,7 +166,7 @@ key_pressed:
 The hysteresis compatibility test is integrated directly into the `ZXTYPE` routine and determines whether the hardware supports reliable hysteresis-based NMOS/CMOS detection. This experimental test is performed automatically when neither AY nor Timex hardware is detected, and is specifically designed for ZX Spectrum 48K hardware.
 
 **Experimental Hardware Limitation**:
-This hysteresis detection method is experimental and might be limited to early ZX Spectrum 48K hardware revisions due to their specific EAR/MIC circuit coupling characteristics. This limitation is precisely why the compatibility test exists - to determine if the hardware supports reliable hysteresis detection before attempting automated detection, with visual detection serving as the guaranteed fallback method.
+This hysteresis detection method is experimental and may be limited to early ZX Spectrum 48K hardware revisions due to their specific EAR/MIC circuit coupling characteristics. Additionally, **Brazilian TK clones (used in Latin America) present a unique compatibility constraint**: while they share similar EAR/MIC/Speaker circuitry with ZX Spectrum systems, hysteresis detection functions reliably only on Brazilian TK clones equipped with **Sinclair Ferranti ULAs**. Brazilian TK clones utilizing **Microdigital ULAs** do not exhibit the necessary hysteresis behavior for this detection method, despite possessing functionally identical audio circuits. This ULA-specific limitation demonstrates that the hysteresis technique depends upon the precise electrical characteristics of the Sinclair Ferranti ULA implementation rather than merely the surrounding analog circuitry. This hardware constraint precisely explains why the compatibility test exists—to determine whether the specific ULA supports reliable hysteresis detection before attempting automated detection, with visual detection serving as the guaranteed fallback method.
 
 **Test Implementation**:
 ```assembly
@@ -196,33 +213,37 @@ HL3:
 
 **Hardware Requirements**:
 - **Experimental limitation**: Only ZX Spectrum 48K tested and expected to work reliably
+**Brazilian TK clone compatibility**: Brazilian TK clones (used in Latin America), while sharing similar EAR/MIC/Speaker circuitry, only support hysteresis detection when equipped with a **Sinclair Ferranti ULA**. Systems with **Microdigital ULAs** do not exhibit the necessary hysteresis behavior for this detection method, despite having identical audio circuitry
+- **ULA-specific behavior**: The hysteresis detection exploits specific electrical characteristics of the Sinclair Ferranti ULA implementation that are not replicated in other ULA variants
 - **Circuit coupling**: Requires EAR/MIC input circuits with sufficient coupling to detect ULA output voltage changes
 - **Voltage thresholds**: ULA must exhibit clear hysteresis behavior with predictable switching thresholds
 - **Timing sensitivity**: Relies on brief `DJNZ` delays for voltage propagation through analog circuitry
+
 **Hysteresis Principle**:
 The ULA's EAR input (bit 6 of port `0FEH`) exhibits hysteresis behavior - it maintains its previous state when input voltages fall within an intermediate range. The technique leverages the fact that NMOS and CMOS Z80 variants output different voltage levels when executing the undocumented `OUT (C),0` instruction.
 
 **Experimental Implementation**:
 ```assembly
-; Experimental hysteresis detection sequence
-ld bc,09FEh          ; B=09h (9 iterations), C=FEh (ULA port)
+; Experimental hysteresis detection sequence  
+ld      bc,30FEh         ; B=48 iterations, C=FEh (ULA port)
 LOOP:
-DB 0EDH, 071H        ; UNDOCUMENTED OUT (C),<0|0FFH> INSTRUCTION
-                     ; WRITE 00 OR FF TO ULA alternating each iteration
-                     ; out bit 3,4 = 00 next in bit 6=0 (NMOS)
-                     ; out bit 3,4 = 11 next in bit 6=1 (CMOS)
-DJNZ LOOP            ; Decrement B, loop until B=0 (9 iterations total)
-IN A,(0FEH)          ; Read ULA register final state
+DB      0EDH, 071H       ; UNDOCUMENTED OUT (C),0 INSTRUCTION
+                         ; WRITE 00 OR FF TO ULA
+                         ; out bit 3,4 = 00 next in bit 6=0 (NMOS)
+                         ; out bit 3,4 = 11 next in bit 6=1 (CMOS)
+djnz    LOOP             ; Decrement B, loop for reliability
+in      a,(ULA_PORT)     ; Read ULA register final state
+and     040h             ; Isolate EAR input (bit 6)
 ```
 
 **Timing Analysis**:
-- **Setup**: `LD BC,09FEh` → 10 T-states
-- **Loop execution** (9 iterations):
-  - `OUT (C),0/FF` → 12 T-states per iteration
-  - `DJNZ` → 13 T-states when taken (8 times), 8 T-states when not taken (final)
-  - Loop total: 8×(12+13) + (12+8) = 200 + 20 = 220 T-states
-- **Final read**: `IN A,(0FEh)` → 11 T-states
-- **Total timing**: 10 + 220 + 11 = **241 T-states** (≈68.9μs at 3.5MHz)
+- **Setup**: `LD BC,30FEh` → 10 T-states
+- **Loop execution** (48 iterations):
+  - `OUT (C),0` → 11 T-states per iteration  
+  - `DJNZ` → 13 T-states when taken (47 times), 8 T-states when not taken (final)
+  - Loop total: 47×(11+13) + (11+8) = 1128 + 19 = 1147 T-states
+- **Final read**: `IN A,(ULA_PORT)` → 11 T-states
+- **Total timing**: 10 + 1147 + 11 = **1168 T-states** (≈333.7μs at 3.5MHz)
 
 **Detection Strategy**:
 The implementation provides an intelligent three-tier detection approach for ZX Spectrum 48K systems with automatic fallback:
@@ -231,15 +252,13 @@ The implementation provides an intelligent three-tier detection approach for ZX 
 2. **Experimental Method - Hysteresis Detection (`TESTCMOSHYST`)**: Automated detection for hardware that passes the integrated hysteresis compatibility test (`ZXTYPE = 3`) - this is experimental and limited to early hardware, which is why the compatibility test exists
 3. **Platform-Specific Methods**: AY-based detection (`ZXTYPE = 1`) and Timex-based detection (`ZXTYPE = 2`) for respective hardware
 
-The `ZXTYPE` routine automatically determines the most appropriate detection method by testing hardware capabilities in sequence. The experimental hysteresis method is only attempted after the system verifies hardware compatibility through the triple-validation test. Because hysteresis detection might be limited to some hardware revisions, the system includes the compatibility test to determine if automated detection is feasible, with visual detection as the guaranteed fallback method for all other hardware.
-
 ## 2. U880 Detection (`TESTU880`)
 
-**Algorithm**: Exploits the behavioral difference in the MME U880 processor's implementation of the `OUTI` instruction regarding carry flag handling.
+**Algorithm**: Exploits the behavioral difference in the MME U880 processor's implementation of the `OUTI` instruction with regard to carry flag handling.
 
 **Implementation Differences**:
-- **Genuine Z80**: `OUTI` clears the carry flag (Zilog reference behavior)
-- **U880 processors**: `OUTI` leaves the carry flag unchanged
+- **Genuine Z80**: The `OUTI` instruction clears the carry flag (Zilog reference behavior)
+- **U880 processors**: The `OUTI` instruction leaves the carry flag unchanged
 
 **Test Procedure**:
 1. **Setup edge case**: `HL = 0FFFFH` (special case where the Zilog implementation clears carry)
@@ -263,15 +282,16 @@ The `ZXTYPE` routine automatically determines the most appropriate detection met
 
 **Assembly Implementation Details**:
 ```assembly
-ld hl,0FFFFH            ; OUTI edge case setup
-ld bc,001FFH            ; B=1 iteration, C=Timex port
-scf                     ; Set carry flag
-DB 0EDH,0A3H           ; OUTI instruction
-jp c,TESTU880DONE      ; Jump if carry unchanged (U880)
-xor a                  ; Clear A for genuine Z80
+ld hl,0FFFFH            ; Memory address for OUTI (edge case test)
+ld bc,001FFH            ; B=1 iteration, C=port 0FFh (safe on all systems)
+ld (hl),b               ; Store test value at (HL)
+scf                     ; Set carry flag - this is the key test
+outi                    ; OUTI instruction - bug test point
+ld a,0                  ; Prepare result (clear A)
+adc a,a                 ; Add carry to A (0=Z80, 1=U880)
 ```
 
-This test leverages the fact that the U880's `OUTI` implementation doesn't follow Zilog's carry flag clearing behavior in the edge case where `HL=0FFFFH`, creating a reliable detection signature.
+This test leverages the fact that the U880's `OUTI` implementation does not conform to Zilog's carry flag clearing behavior in the edge case where `HL=0FFFFH`, thereby creating a reliable detection signature.
 
 ## 3. Undocumented Flag State Analysis (`TESTXY`)
 
@@ -489,5 +509,9 @@ Rui Ribeiro's implementation provides a single binary that automatically detects
 - Program entry point established at address `8000H` with optimized machine code utilizing Z80-specific enhancements
 - During development, a bug in the `OUT (C),0` implementation in QtSpecem was identified and corrected, ensuring accurate NMOS/CMOS detection functionality
 
-This implementation demonstrates silicon-level hardware fingerprinting methods through systematic exploitation of undocumented processor behaviors and statistical validation techniques. The multiple hardware adaptations enable processor variant identification across diverse computing platforms while maintaining the core algorithmic approach. Test results documented in the original repository indicate the algorithm's effectiveness across multiple processor generations and manufacturing implementations.
+## Conclusion
+
+This implementation demonstrates silicon-level hardware fingerprinting methods through systematic exploitation of undocumented processor behaviors and statistical validation techniques. **This represents CPU identification as accurate as possible with 1970s/1980s technology.** Unlike modern CPUID instructions that can be easily modified by CPU manufacturers, firmware, or hypervisors to display arbitrary values, these behavioral detection methods probe the actual silicon implementation and cannot be trivially spoofed. The statistical sampling, undocumented instruction exploitation, and electrical characteristic analysis employed here push the boundaries of deterministic processor identification using only the tools and techniques accessible to that technological era.
+
+Test results documented in the original repository demonstrate the algorithm's effectiveness across multiple processor generations and manufacturing implementations, showcasing how systematic analysis of undocumented behaviors can create reliable identification signatures even in the absence of official processor identification mechanisms.
 
