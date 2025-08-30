@@ -62,7 +62,7 @@
 
 
 	; System variable holding the current border color
-	; Only bits 4-6 are used to store the border color (0-7 value)
+	; bits 3-5 used to store the border color (0-7 value)
 	; Can be read to get the current border colour
 	; or written to update, after OUT (FE) 
 BORDCR		EQU 5C48h
@@ -1373,7 +1373,7 @@ ZXTYPE:
 ;   └─────────────────┘    └─────────────────┘    └─────────────────┘
 ;
 ; WHY REGISTER 1 IS USED:
-; • Register 1 = Tone Generator B Fine Tune (8-bit, accepts 0x00-0xFF)
+; • Register 1 = Tone Generator B Fine Tune 
 ; • Non-critical register (won't affect audio during brief test)
 ; • Reliable read/write on all AY variants (AY-3-8912, YM2149F, clones)
 ; • Full data retention capability (perfect for latch testing)
@@ -1416,7 +1416,7 @@ ISAY:
 ; ALTERNATIVE AY DETECTION METHODS CONSIDERED:
 ; • Could test multiple registers, but single register sufficient
 ; • Could use different test patterns, but 0x0F is safest
-; • Could test register boundaries, but adds complexity
+; • Could test register value limits, but adds complexity
 ; • This simple method works reliably across all AY variants
 
 ;------------------------------------------------------------------------------
@@ -1433,7 +1433,7 @@ ISAY:
 TMXDETECT:
 	LD	C,A		; save value to be written
 	OUT     (TIMEX_CTRL_PORT),A ; Write pattern to Timex control register
-	IN      A,(255)         ; A = readback from control register
+	IN      A,(TIMEX_CTRL_PORT) ; A = readback from control register
 	CP	C		; Does it match what we wrote?
 
 				; in a non-Timex, no effect
