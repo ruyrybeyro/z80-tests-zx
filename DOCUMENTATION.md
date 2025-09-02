@@ -43,18 +43,18 @@ The global `TESTCMOS` routine serves as the main entry point and orchestrates th
 
 The `ZXTYPE` routine performs sequential hardware detection to identify the specific ZX Spectrum variant by testing for distinctive hardware features in order of complexity:
 
-**Test #1 - AY Sound Chip Detection**:
-- **Target ports**: `0FFFDh` (AY register select) and `0BFFDh` (AY data port)
-- **Test procedure**: Select AY register 1 (tone generator B fine tune) → write test pattern `0Fh` → read back value
-- **Detection logic**: If the readback matches the written value (`0Fh`), the AY chip is present → returns `ZXTYPE = 1`
-- **Hardware coverage**: ZX Spectrum 128K, retrofitted 48K models, and compatible clones with AY sound chip
-
-**Test #2 - Timex Control Register Detection** (executed only if the AY test fails):
+**Test #1 - Timex Control Register Detection** (executed only if the AY test fails):
 - **Target port**: `0FFh` (Timex control register)
 - **Test procedure**: Read original value → save for restoration → write test pattern `3Ch` → read back → verify match → write second pattern `C3h` → read back → verify match
 - **Detection logic**: If both test patterns read back correctly, positive Timex identification is confirmed → returns `ZXTYPE = 2`
 - **State preservation**: The original control register value is restored to prevent system instability
 - **Hardware coverage**: Timex 2048/2068 systems with functional control register
+
+**Test #2 - AY Sound Chip Detection**:
+- **Target ports**: `0FFFDh` (AY register select) and `0BFFDh` (AY data port)
+- **Test procedure**: Select AY register 1 (tone generator B fine tune) → write test pattern `0Fh` → read back value
+- **Detection logic**: If the readback matches the written value (`0Fh`), the AY chip is present → returns `ZXTYPE = 1`
+- **Hardware coverage**: ZX Spectrum 128K, retrofitted 48K models, and compatible clones with AY sound chip
 
 **Test #3 - Hysteresis Compatibility Test** (executed only if both AY and Timex tests fail):
 - **Target port**: `0FEh` (ULA port)

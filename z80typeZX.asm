@@ -67,13 +67,15 @@
 	; or written to update, after OUT (FE) 
 BORDCR		EQU 5C48h
 
-ULA_PORT        EQU 0FEh      ; ZX Spectrum ULA port: border color, MIC/EAR, and keyboard scanning
-AY_ADDR_PORT    EQU 0FFFDh    ; AY-3-8912 PSG address port
-AY_DATA_PORT    EQU 0BFFDh    ; AY-3-8912 PSG data port
-TIMEX_CTRL_PORT EQU 0FFh      ; Timex Sinclair control port (TS2068 extra video modes, etc.)
+ULA_PORT        EQU 0FEh	; ZX Spectrum ULA port: border color, MIC/EAR, and keyboard scanning
+AY_ADDR_PORT    EQU 0FFFDh	; AY-3-8912 PSG address port
+AY_DATA_PORT    EQU 0BFFDh    	; AY-3-8912 PSG data port
 
-KBD_HROW_3      EQU 0FBh      ; Keyboard half-row 3: Q, W, E, R, T
-KBD_HROW_8      EQU 07Fh      ; Keyboard half-row 8: B, N, M, Symbol Shift, Space
+; port 0FFh half decoded. 
+TMX_CTRL_PORT	EQU 0FFh; Timex Sinclair control port (TS2068 extra video modes, etc.)
+
+KBD_HROW_3      EQU 0FBh	; Keyboard half-row 3: Q, W, E, R, T
+KBD_HROW_8      EQU 07Fh	; Keyboard half-row 8: B, N, M, Symbol Shift, Space
 
 	; Set program origin to 8000H (32768 decimal)
 	ORG     8000H		; Located in contention-free RAM area
@@ -212,8 +214,12 @@ CHECKZ80:
 	cp 0FDH			; does it sometimes not set XF when FLAGS.3=1?
 				; NEC D780C signature (11111101b)
 	jr z,NECU780C		; Mostly sets flags, occasional XF variance
+	cp	0F0h		; NEC D780C-1
+	jr z,NECU780C1		; Mostly sets flags, occasional XF variance
+
 	cp 0F4H			; KR1858VM1 signature (11110100b)
 	jr z,KR1858VM1		; Specific overclocked behavior pattern
+
 
 	; Unknown NMOS variant
 	ld de,MSGNMOSUNKNOWN	; DE -> "Unknown NMOS Z80 clone"
@@ -231,6 +237,11 @@ NMOSZ80:
 NECU780C:
 	; DE -> "NEC D780C, GoldStar Z8400, possibly KR1858VM1"
 	ld de,MSGNECD780C
+	jr DONE
+
+NECU780C1:
+	; DE -> "NEC D780C-1"
+	ld de,MSGNECD780C1
 	jr DONE
 
 KR1858VM1:
@@ -318,10 +329,10 @@ DONE:
 ; HARDWARE-SPECIFIC TEST METHODS:
 ;   Hardware Type     │ Test Method             │ Port Used    │ Detection Logic
 ;   ──────────────────┼─────────────────────────┼──────────────┼─────────────────
-;   Standard 48K      │ ULA border visual test  │ 0xFE (ULA)   │ User observes border
-;   AY Sound Chip     │ Write/read AY register  │ 0xFFFD/BFFD  │ Compare written value  
 ;   Timex 2048/2068   │ Control register test   │ 0xFF (TMXCR) │ Read back written value
+;   AY Sound Chip     │ Write/read AY register  │ 0xFFFD/BFFD  │ Compare written value  
 ;   ULA Hysteresis    │ Voltage threshold test  │ 0xFE (ULA)   │ EAR input analysis
+;   Standard 48K      │ ULA border visual test  │ 0xFE (ULA)   │ User observes border
 ; 
 ; TECHNICAL PRINCIPLE: The undocumented OUT (C),0 instruction behaves differently:
 ; - NMOS: Outputs 0x00 (data bus pulled low by NMOS transistors)
@@ -338,10 +349,10 @@ TESTCMOS:
 				; 0 has to be first
 				; has the other functions can return 0
 	CALL	Z,TESTCMOSZX	; Use ULA border test with user input
-	CP	1		; ZXTYPE=1: Spectrum with AY sound chip
-	CALL	Z,TESTCMOSAY	; Use AY register test
-	CP	2		; ZXTYPE=2: Timex 2048/2068
+	CP	1		; ZXTYPE=1: Timex 2048/2068
 	CALL	Z,TESTCMOSTMX	; Use Timex control register test
+	CP	2		; ZXTYPE=2: Spectrum with AY sound chip
+	CALL	Z,TESTCMOSAY	; Use AY register test
 	CP	3		; ZXTYPE=3: ULA hysteresis test
 	CALL	Z,TESTCMOSHYST	; Use ULA electrical hysteresis test
 				; (experimental)
@@ -549,7 +560,7 @@ TESTCMOSAY:
 				; Read back the value from AY register 1
 				; VALUE WRITTEN BY OUT (C),<0|0FFH> INSTRUCTION
 
-	and     0xf		; AY register masks to 4 bits (0x0F max)
+	and     0x0f		; AY register masks to 4 bits (0x0F max)
 				; but can go up to 1fh if YM2149
 				; ultimately not much relevant as we care most
                          	; about 0 and not 0
@@ -627,24 +638,31 @@ NMOS:
 ; Uses Timex 2048/2068 control register for CMOS detection
 	
 TESTCMOSTMX:
-
-	in a,(TIMEX_CTRL_PORT)	; Read current Timex control register value
-	ld b,a			; Save original value in B for later restoration
-	ld c,0ffh		; Set C to port address for OUT (C),0 instruction
+;	ld bc,0ff00h+TMX_CTRL_PORT ; Set BC to port address for OUT (C),0 instruction
+	ld c,TMX_CTRL_PORT	; Set C to port address for OUT (C),0 instruction
+				; $FF port is half decoded
+	in a,(c)		; Read current Timex control register value
+	ld e,a			; Save original value in E for later restoration
 	DB	0EDH, 071H	; UNDOCUMENTED OUT (C),<0|0FFH> INSTRUCTION
 				; NMOS writes 0x00 to control register
 				; CMOS writes 0xFF to control register
 
-	in a,(TIMEX_CTRL_PORT)	; Read back the register value from latch
-	ld c,a			; Save the test result in C
+	in a,(c)		; Read back the register value from latch
+	ld d,a			; Save the test result in D 
 
 	; This is CRITICAL - wrong control register values can crash Timex
-	ld a,b			; Restore original control register value
-	out (TIMEX_CTRL_PORT),a	; Write back original value to prevent system instability
+	ld a,e			; Restore original control register value
+	out (c),a	; Write back original value to prevent system instability
 
-	ld a,c			; VALUE WRITTEN BY OUT (C),<0|0FFH> INSTRUCTION
+	ld a,d			; VALUE WRITTEN BY OUT (C),<0|0FFH> INSTRUCTION
 				; Return the test result in A
-	ret			; NMOS: A=0x00, CMOS: A=0xFF
+				; NMOS: A=0x00, CMOS: A=0xFF
+	or	a
+	jr	z,leavetmx	; safeguard - defensive programming
+
+	ld	a,0ffh
+leavetmx:
+	ret
 
 
 ; === CMOS Detection Method 4: ULA Electrical Hysteresis Test ===
@@ -1352,7 +1370,55 @@ ZXTYPE:
 	LD      E,0		; E = ZXTYPE result (0 = assume basic 48K) 
 
 ;------------------------------------------------------------------------------
-; Test #1: Check for YM2149/AY-3-891x Sound Chip
+; Test #1: Check for Timex 2048/2068 Hardware
+;------------------------------------------------------------------------------
+; DETECTION PRINCIPLE: Port 0xFF behavior differs between hardware types
+; • Standard Spectrum: Port 0xFF unused → unpredictable read values
+; • Timex machines: Port 0xFF is control register → returns written value
+;
+; TEST METHOD: Write two different patterns and verify both read back correctly
+; Pattern 1: 0x3C, Pattern 2: 0xC3 (chosen for bit pattern diversity)
+
+ISTMX:
+;	LD	BC,0ff00h+TMX_CTRL_PORT 
+	LD	C,TMX_CTRL_PORT 
+				; $FF port is half decoded
+	IN	A,(C)		; A = current Timex control register value
+	LD	D,A		; D = original value for later restoration
+
+	; Test Pattern 1: Write and verify a specific bit pattern
+	LD	A,0C0h		; A = test pattern 1: 11000000 binary 
+	CALL	TMXDETECT
+	JR	NZ,ISAY		; No match - not Timex hardware, try hysteresis test
+
+	; Test Pattern 2: Verify with a different pattern for confirmation
+	LD	A,080h		; A = test pattern 2: 10000000 binary
+	CALL	TMXDETECT
+	JR	NZ,ISAY		; No match - not Timex, try hysteresis test
+
+	; Both test patterns succeeded - this is definitely Timex hardware
+	INC     E               ; Increment E from 0 to 1: ZXTYPE = 1 (Timex)
+
+;------------------------------------------------------------------------------
+; Return for Timex Detection
+;------------------------------------------------------------------------------
+        JR      RTYPE           ; Jump to final return
+
+; called by ISTMX
+TMXDETECT:
+	LD	L,A		; save value to be written
+	OUT	(C),A		; Write pattern to Timex control register
+	IN	A,(C)		; A = readback from control register
+	CP	L		; Does it match what we wrote?
+
+				; in a non-Timex, no effect
+				; LD+OUT does not affect flags
+	LD	A,D		; A = original Timex control register value
+	OUT	(C),A		; Restore original value to prevent system instability
+	RET
+
+;------------------------------------------------------------------------------
+; Test #2: Check for YM2149/AY-3-891x Sound Chip
 ;------------------------------------------------------------------------------
 ; The AY sound chip is present in:
 ; - ZX Spectrum 128K, +2, +3 (standard)
@@ -1408,10 +1474,11 @@ ISAY:
 				; If no AY: returns bus noise/floating values
 
 	CP      0Fh		; Does readback match our test pattern exactly?
-	JR      NZ,ISTMX	; If different values → no AY chip, test for Timex
+	JR      NZ,HYSTE	; If different values → no AY chip, test for Hysteresis
         
-	INC     E		; AY chip detected: E = 1 (ZXTYPE = 1)
-	JR      RTYPE		; Skip remaining tests and return with result
+	INC     E		; AY chip detected: E = 1 
+	INC	E		; Increment E from 1 to 2: ZXTYPE = 2 (AY)
+	JR	RTYPE		; Skip remaining tests and return with result
 
 ; ALTERNATIVE AY DETECTION METHODS CONSIDERED:
 ; • Could test multiple registers, but single register sufficient
@@ -1419,52 +1486,6 @@ ISAY:
 ; • Could test register value limits, but adds complexity
 ; • This simple method works reliably across all AY variants
 
-;------------------------------------------------------------------------------
-; Test #2: Check for Timex 2048/2068 Hardware  
-;------------------------------------------------------------------------------
-; DETECTION PRINCIPLE: Port 0xFF behavior differs between hardware types
-; • Standard Spectrum: Port 0xFF unused → unpredictable read values
-; • Timex machines: Port 0xFF is control register → returns written value
-;
-; TEST METHOD: Write two different patterns and verify both read back correctly
-; Pattern 1: 0x3C, Pattern 2: 0xC3 (chosen for bit pattern diversity)
-
-; called by ISTMX
-TMXDETECT:
-	LD	C,A		; save value to be written
-	OUT     (TIMEX_CTRL_PORT),A ; Write pattern to Timex control register
-	IN      A,(TIMEX_CTRL_PORT) ; A = readback from control register
-	CP	C		; Does it match what we wrote?
-
-				; in a non-Timex, no effect
-				; LD+OUT does not affect flags
-	LD      A,B             ; A = original Timex control register value
-	OUT     (TIMEX_CTRL_PORT),A ; Restore original value to prevent system instability
-	RET
-	
-
-ISTMX:  
-	IN      A,(TIMEX_CTRL_PORT) ; A = current Timex control register value
-	LD      B,A		; B = original value for later restoration
-        
-	; Test Pattern 1: Write and verify a specific bit pattern
-	LD      A,03Ch		; A = test pattern 1: 00111100 binary (60 decimal)
-	CALL	TMXDETECT
-	JR      NZ,HYSTE	; No match - not Timex hardware, try hysteresis test
-        
-	; Test Pattern 2: Verify with a different pattern for confirmation
-	LD      A,0C3h		; A = test pattern 2: 11000011 binary (195 decimal)
-	CALL    TMXDETECT
-	JR      NZ,HYSTE	; No match - not Timex, try hysteresis test
-        
-	; Both test patterns succeeded - this is definitely Timex hardware
-	INC     E		; Increment E from 0 to 1
-	INC     E		; Increment E from 1 to 2: ZXTYPE = 2 (Timex)
-
-;------------------------------------------------------------------------------
-; Return for Timex Detection
-;------------------------------------------------------------------------------
-	JR	RTYPE		; Jump to final return
 
 ;------------------------------------------------------------------------------
 ; Test #3: ULA Hysteresis Test (Experimental)
@@ -1552,7 +1573,7 @@ HYST:
 
 
 
-; main point of entry, after Timex test failed
+; main point of entry, after AY test failed
 HYSTE:	
 	LD	B,3		; B = try hysteresis test 3 times for reliability
 
@@ -1658,6 +1679,7 @@ MSGNMOSZ80	DB	'Zilog Z80, Zilog Z08400 or similar NMOS CPU',0DH
 		DB      '                   ' ; Alignment spacing
 		DB	'Mostek MK3880N, SGS/ST Z8400, Sharp LH0080A, KR1858VM1$'
 MSGNECD780C	DB	'NEC D780C, GoldStar Z8400, possibly KR1858VM1$'
+MSGNECD780C1	DB	'NEC D780C-1$'
 MSGKR1858VM1	DB	'Overclocked KR1858VM1$'
 MSGNMOSUNKNOWN	DB	'Unknown NMOS Z80 clone$'
 
