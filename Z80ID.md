@@ -32,6 +32,7 @@
 | CPU | CMOS Test | U880 Test | XF/YF Pattern | Test Results | Notes |
 |-----|-----------|-----------|---------------|--------------|--------|
 | NEC D780C | 0x00 | Pass | 0xFD | CMOS:00 U880:00 XF/YF:FD | NMOS, lacks Q register implementation, simplified SCF/CCF flags |
+| NEC D780C-1 | 0x00 | Pass | 0xF0 | CMOS:00 U880:00 XF/YF:F0 | NMOS, lacks Q register implementation, simplified SCF/CCF flags |
 | NEC D70008AC | 0xFF | Pass | 0x1F | CMOS:2C U880:00 XF/YF:1F | CMOS clean-room design, 99.9% compatibility |
 | NEC D70008AC | 0xFF | Pass | 0x0D | CMOS:2C U880:00 XF/YF:0D | Specimen variation, same architecture |
 
@@ -91,6 +92,8 @@ Step 1: Execute U880 Test (OUTI carry flag behavior)
    │  │  └─ Zilog Z80/Z8400, Mostek MK3880N, SGS/ST Z8400, Sharp LH0080A, KR1858VM1
    │  ├─ 0xFD → NEC NMOS Compatible
    │  │  └─ NEC D780C, GoldStar Z8400, possibly KR1858VM1
+   │  ├─ 0xF0 → NEC NMOS Compatible
+   │  │  └─ NEC D780C-1
    │  ├─ 0xF4 → Overclocked Soviet Clone
    │  │  └─ KR1858VM1 (specific batch/overclock variant)
    │  └─ Other → Unidentified NMOS clone
@@ -135,7 +138,7 @@ the same validation logic.
 
 ### Confidence Levels
 - **High Confidence (>99%)**: U880 test, Standard Z80/Z84C00 patterns
-- **Good Confidence (95-99%)**: Sharp LH5080A, Toshiba variants, NEC D780C
+- **Good Confidence (95-99%)**: Sharp LH5080A, Toshiba variants, NEC D780C, NEC D780C-1
 - **Moderate Confidence (85-95%)**: NEC D70008AC, KR1858VM1 variants
 - **Low Confidence (<85%)**: Unknown clones, specimens with anomalous patterns
 

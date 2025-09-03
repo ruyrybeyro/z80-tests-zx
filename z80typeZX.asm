@@ -44,6 +44,7 @@
 ;   ├─ XYRESULT = 30h → Sharp LH5080A
 ;   ├─ XYRESULT = FFh → Standard Zilog Z80/Z8400
 ;   ├─ XYRESULT = FDh → NEC D780C/GoldStar Z8400  
+;   ├─ XYRESULT = F0h → NEC D780C-1  
 ;   ├─ XYRESULT = F4h → KR1858VM1 (overclocked)
 ;   └─ Other values → Unknown NMOS clone
 ;   

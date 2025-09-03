@@ -50,7 +50,7 @@ A>Z80TYPE /D    # Run with debug info
 
 Identifies your Z80 CPU type with high accuracy:
 
-- **NMOS Z80s**: Zilog Z80/Z8400, Sharp LH5080A, NEC D780C, KR1858VM1
+- **NMOS Z80s**: Zilog Z80/Z8400, Sharp LH5080A, NEC D780C, NEC D780C-1, KR1858VM1
 - **CMOS Z80s**: Zilog Z84C00, Toshiba TMPZ84C00AP, NEC D70008AC  
 - **U880 Clones**: East German MME U880, Thesys Z80
 
@@ -133,6 +133,7 @@ Hardware Detection → CMOS/NMOS Test → U880 Bug Test → Flag Pattern Analysi
 | CPU | CMOS | U880 | XF/YF | Notes |
 |-----|------|------|-------|-------|
 | NEC D780C | 00h | 0 | FDh | NMOS clone |
+| NEC D780C-1| 00h | 0 | F0h | NMOS clone |
 | NEC D70008AC | FFh | 0 | <20h | CMOS clone |
 | Toshiba TMPZ84C00AP | FFh | 0 | 3Fh | CMOS variant |
 | KR1858VM1 | 00h | 0 | F4h | Soviet clone |

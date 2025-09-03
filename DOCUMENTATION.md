@@ -365,6 +365,7 @@ TESTXY2:
 - **`0x3F` (00111111b)**: YF flag never asserted when A.5=1 (Toshiba TMPZ84C00AP signature)
 - **`0x30` (00110000b)**: Distinctive pattern of Sharp LH5080A silicon implementation
 - **`0xFD` (11111101b)**: XF flag shows non-deterministic assertion when FLAGS.3=1 (NEC D780C signature)
+- **`0xF0` (11110000b)**: NEC D780C-1 signature
 - **`0xF4` (11110100b)**: Characteristic pattern of the KR1858VM1 silicon implementation
 - **`0x00`-`0x1F`**: Complex random patterns requiring secondary validation (NEC D70008AC signatures)
 
@@ -389,6 +390,7 @@ Based on the original repository's Results.md documentation, the implementation 
 
 **NEC variants** demonstrating distinctive patterns:
 - **NEC D780C**: Raw results: CMOS: 00 U880: 00 XF/YF: FD (lacks Q register implementation, simplified SCF/CCF flags)
+- **NEC D780C-1**: Raw results: CMOS: 00 U880: 00 XF/YF: F0 (lacks Q register implementation, simplified SCF/CCF flags)
 - **NEC D70008AC**: Raw results: CMOS: 2C U880: 00 XF/YF: 1F and Raw results: CMOS: 2C U880: 00 XF/YF: 0D (clean-room design with 99.9% compatibility)
 
 **Licensed and compatible variants**:
@@ -402,7 +404,7 @@ Based on the original repository's Results.md documentation, the implementation 
 
 **Licensed Production**: Mostek, SGS, Sharp, and Siemens variants exhibit Zilog-compatible behavior across all three detection algorithms, typically yielding results identical to those of original Zilog processors.
 
-**Clean-Room Compatible**: NEC implementations (D780C, D70008AC) demonstrate 99.9% compatibility with distinctive XF/YF flag patterns due to internal architecture differences, particularly the absence of Q register implementation in some variants.
+**Clean-Room Compatible**: NEC implementations (D780C,D780C-1,D70008AC) demonstrate 99.9% compatibility with distinctive XF/YF flag patterns due to internal architecture differences, particularly the absence of Q register implementation in some variants.
 
 **Eastern Bloc Clones**: Soviet КР1858ВМ1 and East German U880 processors exhibit varying quality control with generally compatible behavior but occasional deviations in undocumented instruction handling and timing precision.
 
@@ -421,6 +423,7 @@ Based on the original repository's Results.md documentation, the implementation 
      └─ If XYRESULT = 0xFF → "Zilog Z80, Zilog Z08400 or similar NMOS CPU
                               Mostek MK3880N, SGS/ST Z8400, Sharp LH0080A, KR1858VM1"
      └─ If XYRESULT = 0xFD → "NEC D780C, GoldStar Z8400, possibly KR1858VM1"
+     └─ If XYRESULT = 0xF0 → "NEC D780C-1"
      └─ If XYRESULT = 0xF4 → "Overclocked KR1858VM1"
      └─ Else → "Unknown NMOS Z80 clone"
 
