@@ -1,20 +1,21 @@
-# Z80 CPU Type Detection Software - ZX port
+# Z80 CPU Testing Software - ZX port
 
-**A lightweight utility for identifying Z80 CPU variants and clones**
+**for identifying Zilog Z80 CPU variants and clones**
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-## Quick Download & Use
 
-### ZX Spectrum - Ready to Use
-- **Download**: [`z80typeZX.tap`](./z80typeZX.tap) - Complete program ready to load
-- **Technical Details**: [`DOCUMENTATION.md`](./Documentation/DOCUMENTATION.md) - Complete specifications
-- **Z80 ID Guide**: [`Z80ID.md`](./Documentation/Z80ID.md) - Z80 CPU Variant Identification Guide
-
+## ZX Spectrum and clones
+- **Download**: [`z80typeZX.tap`](./z80typeZX.tap) - Program to load
 
 ```basic
 LOAD ""
 ```
+
+## Documentation
+
+- **Technical Details**: [`DOCUMENTATION.md`](./Documentation/DOCUMENTATION.md) - Specifications
+- **Z80 ID Guide**: [`Z80ID.md`](./Documentation/Z80ID.md) - Z80 CPU Variant Identification Guide
 
 ## Tested Hardware & Emulators
 
@@ -104,7 +105,6 @@ Different Z80 variants handle undocumented instructions differently, creating un
 - **Detection completes automatically** - results display immediately
 - **ZX Spectrum**: Program returns to BASIC after showing results and pressing any key
 - **CP/M**: Returns to command prompt, use /D for detailed output
-- **Safe operation**: Non-destructive testing, won't affect system stability
 
 ### Known Limitations
 - Some rare clones may show as "Unknown"
@@ -147,8 +147,8 @@ Hardware Detection → CMOS/NMOS Test → U880 Bug Test → Flag Pattern Analysi
 ### Files
 - [`z80typeZX.asm`](./z80typeZX.asm) - ZX Spectrum assembly source
 - [`z80typeZX.bas`](./z80typeZX.bas) - BASIC loader
-- [`z80typeZX.tap`](./z80typeZX.tap) - Ready-to-use TAP file
-- [`DOCUMENTATION.md`](./Documentation/DOCUMENTATION.md) - Complete technical specs
+- [`z80typeZX.tap`](./z80typeZX.tap) - TAP file
+- [`DOCUMENTATION.md`](./Documentation/DOCUMENTATION.md) - Technical specs
 - [`Z80ID.md`](./Documentation/Z80ID.md) - Z80 CPU Variant Identification Guide
 - [`Results.md`](./Documentation/Results.md) - Test results database
 
