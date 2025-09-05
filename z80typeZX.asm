@@ -16,13 +16,13 @@
 ;
 ; Use it together with this BASIC snippet
 ; **WARNING: without this snippet, a PRINT must be made *before*
-; calling this program.
+; calling this program if called from the machine prompt.
 ;
-; 10 CLEAR 32767
+; 10 CLEAR 31231
 ; 20 POKE 23610,255
 ; 30 LOAD ""CODE 
 ; 40 BORDER 7:PAPER 7:INK 0:CLS:PRINT
-; 50 RANDOMIZE USR 32768
+; 50 RANDOMIZE USR 31232
 ; 60 PAUSE 0
 ;
 ;==============================================================================
@@ -78,8 +78,12 @@ TMX_CTRL_PORT	EQU 0FFh; Timex Sinclair control port (TS2068 extra video modes, e
 KBD_HROW_3      EQU 0FBh	; Keyboard half-row 3: Q, W, E, R, T
 KBD_HROW_8      EQU 07Fh	; Keyboard half-row 8: B, N, M, Symbol Shift, Space
 
-	; Set program origin to 8000H (32768 decimal)
-	ORG     8000H		; Located in contention-free RAM area
+	; Set program origin to 7A00H (31232 decimal)
+	; lower RAM so it runs in older 16KB ZX Spectrum models
+	; if writing new code, beware of not going past 7FFF
+ORIGIN		EQU 7A00H
+
+	ORG     ORIGIN		; lower 16KB
 
 	; NOTE: Channel 2 (main screen) 
 	; opened by BASIC PRINT before RANDOMIZE USR
@@ -98,7 +102,7 @@ ARGDEBUG:
 	; previous colour
 	ld a,1			; change to 0 for less output
 	ld (DEBUG),a
-	
+
 NOARGS:
 	; === MAIN CPU DETECTION SEQUENCE ===
 	
@@ -182,14 +186,14 @@ DETECTCPU:
 
 ; First check: Is this a U880 CPU?
 	ld a,(ISU880)		; Load U880 test result from memory
-	or a			; Test if U880 flag is set
+	or a			; Check if ISU880 is nonzero (U880 detected)
 	jr z,CHECKZ80		; If not U880, check Z80 variants
 
 	; It's a U880 - now determine if it's old or new variant
 	; New U880s always set XF/YF flags (XYRESULT = 0FFh)
 	; Old U880s have different XF/YF behavior	
 	ld a,(XYRESULT)		; Load XY flags test result from memory
-	cp 0FFH			; does it always set XF/YF?
+	cp 0FFH			; Check if XYRESULT indicates all flags always set (0xFF)
 
 	; DE -> "Newer MME U880, Thesys Z80, Microelectronica MMN 80CPU"
 	ld de,MSGU880NEW
@@ -486,7 +490,7 @@ wait_key:
 	jr   z,key_pressed	; If W pressed (bit=0), jump with carry=1 (CMOS)
 
 	; --- check B key (row B-N-M-SS-Space, mask 0xEF) ---
-	; Check B key: Located in row 5 (B-N-M-SS-Space row)  
+	; Check B key: Located in row 4 (B-N-M-SS-Space row)  
 	ld   b,KBD_HROW_8	; port 7FFE - 
 				; Row mask 01111111b - 8th half scan row
 	in   a,(c)		; Read ULA port: bits 0-4 = key states
@@ -494,10 +498,10 @@ wait_key:
 	ccf			; Clear carry flag (assume NMOS/black result)
 
 	; Test bit 4 for B key state (0=pressed, 1=released)
-	bit  4,a		; test bit 2 (B key)
+	bit  4,a		; test bit 4 (B key)
 	jr   z,key_pressed	; If B pressed (bit=0), jump with carry=0 (NMOS)
 
-	jr   wait_key		; ; Neither key pressed - continue polling
+	jr   wait_key		; Neither key pressed - continue polling
 
 key_pressed:
 	ld   a,$ff		; Load 0xFF (assume CMOS result)
@@ -550,6 +554,8 @@ LEAVEZX:
 TESTCMOSAY:
 	ld bc,AY_ADDR_PORT	; AY register select port FFFD (address latch)
 	ld a,1            	; Select AY register 1 (tone generator B fine tune)
+				; Register 1 is chosen because it is non-critical for sound
+				; and reliably latches values across AY-3-8912/YM2149F variants
 	out (c),a		; Send register number to AY address latch
 
 	ld b,0BFh		; Switch to AY data port 0BFFDh
@@ -560,6 +566,8 @@ TESTCMOSAY:
 	in a,(c)         	; gets the stored value from port 0BFFDh
 				; Read back the value from AY register 1
 				; VALUE WRITTEN BY OUT (C),<0|0FFH> INSTRUCTION
+				; AY register only stores 4 or 5 bits (AY-3-8912: 4 bits, YM2149: 5 bits)
+				; so AND 0x0F is necessary for reliable detection across AY/YM variants
 
 	and     0x0f		; AY register masks to 4 bits (0x0F max)
 				; but can go up to 1fh if YM2149
@@ -640,18 +648,21 @@ NMOS:
 	
 TESTCMOSTMX:
 ;	ld bc,0ff00h+TMX_CTRL_PORT ; Set BC to port address for OUT (C),0 instruction
-	ld c,TMX_CTRL_PORT	; Set C to port address for OUT (C),0 instruction
+	ld c,TMX_CTRL_PORT	; Set C to port address for OUT (C),0 instruction (port is half-decoded)
 				; $FF port is half decoded
-	in a,(c)		; Read current Timex control register value
+	in a,(c)		; Read current Timex control register value (must be restored later to avoid system instability)
 	ld e,a			; Save original value in E for later restoration
-	DB	0EDH, 071H	; UNDOCUMENTED OUT (C),<0|0FFH> INSTRUCTION
+
+	DB	0EDH, 071H	; UNDOCUMENTED OUT (C),0 INSTRUCTION - KEY NMOS/CMOS TEST: WRITES 0x00 (NMOS) OR 0xFF (CMOS) TO PORT
 				; NMOS writes 0x00 to control register
 				; CMOS writes 0xFF to control register
 
-	in a,(c)		; Read back the register value from latch
+
+	in a,(c)		; Critical read: determines if CPU is NMOS (0x00) or CMOS (0xFF)
 	ld d,a			; Save the test result in D 
 
-	; This is CRITICAL - wrong control register values can crash Timex
+	; MANDATORY: You MUST restore the original control register value here!
+	; Failing to do so can cause unpredictable behavior or crash Timex systems.
 	ld a,e			; Restore original control register value
 	out (c),a	; Write back original value to prevent system instability
 
@@ -848,15 +859,19 @@ leaveout:
 ;-------------------------------------------------------------------------
 TESTU880:
 	ld hl,0FFFFH		; Memory address for OUTI (edge case test)
+
+        ; TMX_CTRL_PORT
 	ld bc,001FFH		; C=TIMEX CONTROL REGISTER FOR TESTS
 				; B = 1 (single OUTI iteration)
 				; Port FFh is safe - unused on non-Timex models
 
-	ld (hl),b		; Store test value at (HL), affects flags
+				; Store test value at (HL), affects flags
+	ld (hl),b		; (HL) won't be changed on 16KB models
 
 	di			; Disable interrupts during I/O test
 
-	in a,(0ffh)		; Set carry flag (critical for the test)
+	in a,(c)		; save Timex control register
+ 
 	scf			; Set carry flag - this is the key test
 	outi			; OUTI: (HL) → port (C), HL++, B--
 				; Documented flags: Z (from B), N=1
@@ -864,13 +879,15 @@ TESTU880:
 				; U880: carry incorrectly preserved (set)
 				; Z80 (reference): carry cleared
 
-	out (0ffh),a		; Restore Timex control register
-				; (No effect on non-Timex models)
+	out (c),a		; Restore Timex control register (safe on all ZX Spectrum models)
+				; On non-Timex hardware, this is a harmless no-op with no effect
 	
 	ei			; Re-enable interrupts
 
 	ld a,0			; Prepare result (clear A)
-	adc a,a			; Add carry to A
+				; not using XOR A as we neet to preserve carry
+	adc a,a			; Add carry to A (A=1 if carry set, else 0)
+				; This converts the carry flag to 0 or 1 in A.
 				; U880: C=1 unchanged, A becomes 1
 				; Z80: C=0, A remains 0
 
@@ -1339,7 +1356,7 @@ PRSTR:
 	INC     DE		; Point to next character
 	JR      PRSTR		; Continue until end-of-string marker
 EOS:	
-	pop hl			; Restore all registers
+	pop hl			; Restore HL, BC, AF
 	;pop de
 	pop bc
 	pop af
@@ -1390,12 +1407,17 @@ ISTMX:
 	; Test Pattern 1: Write and verify a specific bit pattern
 	LD	A,0C0h		; A = test pattern 1: 11000000 binary 
 	CALL	TMXDETECT
-	JR	NZ,ISAY		; No match - not Timex hardware, try hysteresis test
+	JR	NZ,ISAY		; No match - not Timex hardware, try AY test
 
 	; Test Pattern 2: Verify with a different pattern for confirmation
 	LD	A,080h		; A = test pattern 2: 10000000 binary
 	CALL	TMXDETECT
-	JR	NZ,ISAY		; No match - not Timex, try hysteresis test
+	JR	NZ,ISAY		; No match - not Timex, try AY  test
+
+	; initializing normal video and interrupts
+	LD	A,D
+	AND	$80		; keep DOCK vs EXROm 
+	OUT	(c),A
 
 	; Both test patterns succeeded - this is definitely Timex hardware
 	INC     E               ; Increment E from 0 to 1: ZXTYPE = 1 (Timex)
@@ -1412,9 +1434,9 @@ TMXDETECT:
 	IN	A,(C)		; A = readback from control register
 	CP	L		; Does it match what we wrote?
 
-				; in a non-Timex, no effect
 				; LD+OUT does not affect flags
 	LD	A,D		; A = original Timex control register value
+				; in a non-Timex, no effect
 	OUT	(C),A		; Restore original value to prevent system instability
 	RET
 
@@ -1618,14 +1640,18 @@ RTYPE:
 ;         PAPER = border colour
 ;         INK   = black/white (depends on brightness)
 ;         BRIGHT, FLASH set as needed
+;       WARNING: The value at BORDCR (5C48h) may be altered by some ROM routines
+;       or by user code, so in rare cases it may not reflect the actual hardware
+;       border color if the system variable is not kept in sync.
 ; Therefore, to recover the border, we must extract bits 3–5.
 ; --------------------------------------
-
 GETBORDER:
 	LD	A,(BORDCR)	; Load attribute byte from system variable 23624 (5C48h)
+
 	SRL	A		; Shift right 3 times so PAPER (border) bits 3–5 → 0–2
-	SRL	A
-	SRL	A
+	SRL	A		; (Extracts border color from attribute byte: bits 3-5)
+	SRL	A		; (Alternative: could use RRCA in a loop, but SRL is clearer here)
+				
 	AND	7		; Isolate lower 3 bits (0–7 colour number)
 	RET
 
@@ -1694,5 +1720,5 @@ MSGCMOSUNKNOWN	DB	'Unknown CMOS Z80 clone$'
 MESBW		DB	'Press B-black W-white border'
 		DB	0DH, 0DH,'$' ; Double newline for spacing
 
-	END $8000	; Program ends here, execution starts at $8000
+	END	ORIGIN	; Program ends here, execution starts at 7C00H
 
