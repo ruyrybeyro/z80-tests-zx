@@ -103,6 +103,18 @@ ARGDEBUG:
 	ld a,1			; change to 0 for less output
 	ld (DEBUG),a
 
+	; === init vars as 0
+	; uptream project is called only once as a .COM
+	; lacked variable initialization needed for multiple runs
+
+	LD	B,11		; 11 bytes
+	XOR	A
+	LD	HL,ISCMOS
+INITVARS:			; loop clean variables are as zeros
+	LD	(HL),A
+	INC	HL		; next byte
+	DJNZ	INITVARS
+	
 NOARGS:
 	; === MAIN CPU DETECTION SEQUENCE ===
 	
